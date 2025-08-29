@@ -1,0 +1,43 @@
+/*
+ * timer.c
+ *
+ *  Created on: 1 Nov 2024
+ *      Author: farah
+ */
+
+#include"timer.h"
+#include<avr/io.h>
+
+void Timer_init(const Timer_ConfigType*Config_Ptr)
+{
+	if((Config_Ptr->timer_ID)==TIMER0)
+	{
+		if((Config_Ptr->timer_mode)==NORMAL)
+		{
+			TCCR0=((Config_Ptr->timer_clock)&0x07);
+			TCNT0=Config_Ptr->timer_InitialValue;
+			TIMSK|=(1<<TOIE0);
+		}
+		else if((Config_Ptr->timer_mode)==COMPARE_MATCH)
+		{
+		  TCCR0=(1<<FOC0)|(1<<WGM01)|(1<<COM01)|((Config_Ptr->timer_clock)&0x07);
+		  TCNT0=Config_Ptr->timer_InitialValue;
+		  OCR0=Config_Ptr ->timer_compare_MatchValue;
+		  TIMSK|=(1<<OCIE0);
+		}
+	}
+
+	else if((Config_Ptr->timer_ID)==TIMER1)
+	{
+		 if((Config_Ptr->timer_mode)==NORMAL)
+		 {
+			 TCCR1A=
+		 }
+		 else if((Config_Ptr->timer_mode)==COMPARE_MATCH)
+		 {  #ifdef INVERTING_CTC_MODE
+			 TCCR1A=(1<<COM1A)
+            #endif
+		 }
+
+	}
+}

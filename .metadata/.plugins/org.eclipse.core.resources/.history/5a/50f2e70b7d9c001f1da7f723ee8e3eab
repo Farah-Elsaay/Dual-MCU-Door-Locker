@@ -1,0 +1,304 @@
+/*
+ * main_hmi.c
+ *
+ *  Created on: 1 Nov 2024
+ *      Author: farah
+ */
+/************** Includes **************/
+#include "std_types.h"
+#include <util/delay.h>
+#include <avr/interrupt.h>
+#include "uart.h"
+#include "timer.h"
+#include "lcd.h"
+#include "keypad.h"
+
+#define PASS_LOAD        0xA0
+#define PASS_IN          0xF1
+#define PASS_UPDATE      0xE0
+#define PASS_CORRECT     0xC0
+#define PASS_FAIL        0xF0
+#define PEOPLE_IN        0xB0
+#define PEOPLE_NO        0xD0
+#define ALARM_ON         0xF2
+
+/* Array to Store Password */
+uint8 pass[10] = {0};
+uint8 i = 0;
+uint8 pass_state = 0;
+uint8 key = 0;
+uint8 counter = 0;
+uint8 enter_fails = 0;
+uint8 update_fails = 0;
+uint8 people_status = 0;
+
+
+void Timer1_handler(void)
+{
+	++counter;
+}
+void changepass(void)
+{
+	int i=0; uint8 passchange[7];
+
+		LCD_displayString("Plz enter PASS");
+			while(i<5)
+			{
+				uint8 num=KEYPAD_getPressedKey();
+				if(((num>=1)&&(num<=9)))
+				{
+				passchange[i]=KEYPAD_getPressedKey();
+				LCD_moveCursor(1,i);
+				LCD_displayCharacter('*');
+				i++;
+				}
+				_delay_ms(500); /* Press time */
+			}
+		   while(KEYPAD_getPressedKey()!='='){}
+			passchange[5]='#';
+
+			UART_sendString(passchange);
+			uint8 pass_state = UART_receiveByte();
+						if(pass_state == PASS_CORRECT)
+						{
+							/* the program will return to entering password again */
+							LCD_clearScreen();
+							LCD_displayString("PASS RIGHT");
+							counter = 0;
+							while(counter < 3);
+							mainoptions();
+						}
+
+						else if(pass_state == PASS_FAIL)
+						{
+							++update_fails;
+							if(update_fails == 3)
+							{
+								/* Lock system for 1 minute */
+								LCD_clearScreen();
+								LCD_displayStringRowColumn(0, 1, "System LOCKED");
+								LCD_displayStringRowColumn(1, 0, "Wait for 1 min");
+								counter = 0;
+								while(counter < 60);
+								update_fails = 0;
+							}
+							else
+							{
+								/* the program will return to entering password again */
+								LCD_clearScreen();
+								LCD_displayString("PASS WRONG");
+								counter = 0;
+								while(counter < 3);
+								changepass();
+							}
+						}}
+}
+void opendoor(void)
+{
+	int i=0; uint8 passdoor[7];
+	   LCD_displayString("Plz enter PASS");
+		while(i<5)
+		{
+			uint8 num=KEYPAD_getPressedKey();
+			if(((num>=1)&&(num<=9)))
+		 	{
+			passdoor[i]=KEYPAD_getPressedKey();
+			LCD_moveCursor(1,i);
+			LCD_displayCharacter('*');
+			i++;
+			}
+			_delay_ms(500); /* Press time */
+		}
+	   while(KEYPAD_getPressedKey()!='='){}
+		passdoor[5]='#';
+        UART_sendByte(PASS_IN);
+        _delay_ms(100);
+		UART_sendString(passdoor);
+
+		/* Checking pass */
+		pass_state = UART_receiveByte();
+		if(pass_state == PASS_CORRECT)
+		{
+			enter_fails = 0;
+			/* Open door for 15 seconds */
+			LCD_clearScreen();
+			LCD_displayStringRowColumn(0, 1, "Door Unlocking");
+			LCD_displayStringRowColumn(1, 3, "Please Wait");
+			counter = 0;
+			while(counter < 15);
+
+			/* Check people entering */
+			LCD_clearScreen();
+			people_status = UART_receiveByte();
+			while(people_status == PEOPLE_IN)
+			{
+				LCD_displayStringRowColumn(0, 0, "Wait for People");
+				LCD_displayStringRowColumn(1, 3, "to Enter");
+				people_status = UART_receiveByte();
+			}
+			if(people_status == PEOPLE_NO)
+			{
+				LCD_clearScreen();
+				LCD_displayStringRowColumn(0, 2, "Door Locking");
+				counter = 0;
+				while(counter < 15);
+			}
+		}
+		else if(pass_state == PASS_FAIL)
+		{
+			++enter_fails;
+			if(enter_fails == 3)
+			{
+				/* Lock system for 1 minute */
+				UART_sendByte(ALARM_ON);
+				LCD_clearScreen();
+				LCD_displayStringRowColumn(0, 1, "System LOCKED");
+				LCD_displayStringRowColumn(1, 0, "Wait for 1 min");
+				counter = 0;
+				while(counter < 60);
+				enter_fails = 0;
+			}
+			else
+			{
+				/* the program will return to entering password again */
+				LCD_clearScreen();
+				LCD_displayString("PASS WRONG");
+				counter = 0;
+				while(counter < 3);
+				mainoptions();
+			}
+		}
+}
+void mainoptions(void)
+{
+	LCD_displayStringRowColumn(0,0,"+:Open door   ");
+	LCD_displayStringRowColumn(1,0,"-:Change pass   ");
+	uint8 key=KEYPAD_getPressedKey();
+	if(key=='+')
+	{
+		LCD_clearScreen();
+		opendoor();
+	}
+	else if(key=='-')
+	{
+		LCD_clearScreen();
+        changepass();
+	}
+}
+void first_time_pass(void)
+{
+
+	UART_sendByte(PASS_LOAD);
+			int i=0,k=0; uint8 pass[7]; uint8 passcheck[7]; uint8 repeat=0;
+			LCD_clearScreen();
+			LCD_displayString("Plz Enter Pass:");
+			 while(i<5)
+				{
+					uint8 num=KEYPAD_getPressedKey();
+					if(((num>=1)&&(num<=9)))
+					{
+					pass[i]=KEYPAD_getPressedKey();
+					LCD_moveCursor(1,i);
+					LCD_displayCharacter('*');
+					i++;
+					}
+					_delay_ms(500); /* Press time */
+				}
+			while(KEYPAD_getPressedKey()!='='){}
+				pass[5]='#';
+			LCD_clearScreen();
+			LCD_displayString("Please re-enter PASS");
+			while(k<5)
+			{
+				uint8 num=KEYPAD_getPressedKey();
+				if(((num>=1)&&(num<=9)))
+				{
+				passcheck[k]=KEYPAD_getPressedKey();
+				LCD_moveCursor(1,k);
+				LCD_displayCharacter('*');
+				k++;
+				}
+				_delay_ms(500); /* Press time */
+			}
+			while(KEYPAD_getPressedKey()!='='){}
+			passcheck[5]='#';
+
+			/* Sending Password to Control ECU Using UART */
+			for(i = 0; i < 6; ++i)
+			{
+				UART_sendString(pass);
+			}
+
+			/* Checking pass */
+			for(i=0;i<5;i++)
+			{
+			if(pass[i]!=passcheck[i])
+				{
+					repeat=1;
+				}
+			}
+			if(repeat==1)
+			{
+				/* the program will return to entering password again */
+				LCD_clearScreen();
+				LCD_displayString("PASS WRONG");
+				first_time_pass();
+			}
+			else
+			{
+
+				LCD_clearScreen();
+				UART_sendByte(PASS_IN);
+				UART_sendString(pass);
+				LCD_displayString("PASS SAVED   ");
+				mainoptions();
+		}
+}
+int main()
+{
+	/********** Initializations **********/
+	/* LCD Initialization */
+	LCD_init();
+
+	/* UART Initialization */
+	UART_ConfigType uart_cfg = {BITS_MODE_8,NO_PARITY,STOPBIT_1BIT, BAUDRATE_9600};
+	UART_init(&uart_cfg);
+
+	/* Creating timer 1 object to count time */
+	sei();
+	Timer_ConfigType time1 = {0, 31250, TIMER1, PRESCALER_256,COMPARE_MATCH};
+	Timer_init(&time1);
+	Timer_setCallBack(Timer1_handler, TIMER1);
+
+	/* Enter Password for the first Time */
+	first_time_password();
+	uint8 passdoor[7];
+
+	/************** Program **************/
+	while(1)
+	{
+		/* Entering main window */
+		mainoptions();
+		/* Waiting for user order */
+		do{
+			key = KEYPAD_getPressedKey();
+		}while(key != '+' && key != '-');
+
+		/* Checking order type */
+		if(key == '+')
+		{
+			/* Waiting for user to enter old password */
+			UART_sendByte(PASS_IN);
+			LCD_clearScreen();
+			opendoor();
+
+		}
+		else if(key == '-')
+		{
+			/* Waiting for user to enter old password */
+			UART_sendByte(PASS_UPDATE);
+			LCD_clearScreen();
+			changepass();
+      	}
+
+	}

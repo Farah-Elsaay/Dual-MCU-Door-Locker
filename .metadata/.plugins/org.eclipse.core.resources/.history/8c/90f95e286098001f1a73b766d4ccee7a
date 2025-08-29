@@ -1,0 +1,30 @@
+/*
+ * timer.c
+ *
+ *  Created on: 1 Nov 2024
+ *      Author: farah
+ */
+
+#include"timer.h"
+#include"gpio.h"
+
+void Timer_init(const Timer_ConfigType*Config_Ptr)
+{
+#if((Config_Ptr->timer_ID)==TIMER0)
+    #if((Config_Ptr->timer_mode)==NORMAL)
+
+
+    #elif((Config_Ptr->timer_mode)==COMPARE_MATCH)
+
+
+    #endif
+#elif((Config_Ptr->timer_ID)==TIMER1)
+     #if((Config_Ptr->timer_mode)==NORMAL)
+
+
+     #elif((Config_Ptr->timer_mode)==COMPARE_MATCH)
+
+
+     #endif
+#endif
+}

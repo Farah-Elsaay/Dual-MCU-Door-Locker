@@ -1,0 +1,136 @@
+/*
+ * timer.c
+ *
+ *  Created on: 1 Nov 2024
+ *      Author: farah
+ */
+
+#include"timer.h"
+#include<avr/io.h>
+#include<avr/interrupt.h>
+
+static volatile void((*g_Timer0_CallBackPtr)(void));
+static volatile void((*g_Timer1_CallBackPtr)(void));
+static volatile void((*g_Timer2_CallBackPtr)(void));
+
+ISR(TIMER0_OVF_vect)
+{
+	(*g_Timer0_CallBackPtr)();
+}
+
+ISR(TIMER0_COMP_vect)
+{
+	(*g_Timer0_CallBackPtr)();
+}
+
+ISR(TIMER1_OVF_vect)
+{
+	(*g_Timer1_CallBackPtr)();
+}
+
+ISR(TIMER1_COMPA_vect)
+{
+	(*g_Timer1_CallBackPtr)();
+}
+
+ISR(TIMER2_OVF_vect)
+{
+	Buzzer_on();
+	(*g_Timer2_CallBackPtr)();
+}
+
+ISR(TIMER2_COMP_vect)
+{
+	(*g_Timer2_CallBackPtr)();
+}
+
+void Timer_init(const Timer_ConfigType*Config_Ptr)
+{
+	SREG|=(1<<7);
+	if((Config_Ptr->timer_ID)==TIMER0)
+	{
+		if((Config_Ptr->timer_mode)==NORMAL)
+		{
+			TCCR0=((Config_Ptr->timer_clock)&0x07);
+			TCNT0=Config_Ptr->timer_InitialValue;
+			TIMSK|=(1<<TOIE0);
+		}
+		else if((Config_Ptr->timer_mode)==COMPARE_MATCH)
+		{
+
+			 TCCR0=(1<<FOC0)|(1<<WGM01)|((Config_Ptr->timer_clock)&0x07);
+
+			 TCNT0=Config_Ptr->timer_InitialValue;
+			 OCR0=Config_Ptr ->timer_compare_MatchValue;
+			 TIMSK|=(1<<OCIE0);
+		}
+	}
+
+	else if((Config_Ptr->timer_ID)==TIMER1)
+	{
+		 if((Config_Ptr->timer_mode)==NORMAL)
+		 {
+			 TCCR1A=0;
+			 TCCR1B=((Config_Ptr->timer_clock)&0x07);
+			 TIMSK=(1<<TOIE1);
+		 }
+		 else if((Config_Ptr->timer_mode)==COMPARE_MATCH)
+		 {
+			 TCCR1B=(1<<WGM12)|((Config_Ptr->timer_clock)&0x07);
+			 OCR1A=(Config_Ptr->timer_compare_MatchValue);
+			 TIMSK=(1<<OCIE1A);
+			 TCCR1A=(1<<FOC1A);
+
+
+		 }
+
+	}
+	else if((Config_Ptr->timer_ID)==TIMER2)
+		{
+			if((Config_Ptr->timer_mode)==NORMAL)
+			{
+				TCCR2=((Config_Ptr->timer_clock)&0x07)|(1<<FOC2);
+				TCNT2=Config_Ptr->timer_InitialValue;
+				TIMSK|=(1<<TOIE2);
+			}
+			else if((Config_Ptr->timer_mode)==COMPARE_MATCH)
+			{
+
+			  TCCR2=(1<<FOC2)|(1<<WGM21)|((Config_Ptr->timer_clock)&0x07);
+
+			  TCNT2=Config_Ptr->timer_InitialValue;
+			  OCR2=Config_Ptr ->timer_compare_MatchValue;
+			  TIMSK|=(1<<OCIE2);
+			}
+		}
+}
+void Timer_deInit(Timer_ID_Type timer_type)
+{
+	if(timer_type==TIMER0)
+	{
+		TCCR0&=0xF8; /*CLOCK=0*/
+	}
+	else if(timer_type==TIMER1)
+	{
+		TCCR1B&=0xF8; /*CLOCK=0*/
+	}
+	else if(timer_type==TIMER2)
+	{
+		TCCR2&=0xF8;   /*CLOCK=0*/
+	}
+}
+void Timer_setCallBack(void(*a_ptr)(void),Timer_ID_Type a_timer_ID)
+{
+    if(a_timer_ID==TIMER0)
+       {
+    	g_Timer0_CallBackPtr=a_ptr;
+       }
+    else if(a_timer_ID==TIMER1)
+       {
+       	g_Timer1_CallBackPtr=a_ptr;
+       }
+    else if(a_timer_ID==TIMER2)
+       {
+       	g_Timer2_CallBackPtr=a_ptr;
+       }
+}

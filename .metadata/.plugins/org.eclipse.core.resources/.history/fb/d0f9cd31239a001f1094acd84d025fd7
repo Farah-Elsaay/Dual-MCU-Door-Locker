@@ -1,0 +1,146 @@
+/*
+ * main_control.c
+ *
+ *  Created on: 1 Nov 2024
+ *      Author: farah
+ */
+#include"buzzer.h"
+#include"dc_motor.h"
+#include"external_eeprom.h"
+#include"pir.h"
+#include"timer.h"
+#include"twi.h"
+#include"uart.h"
+#include"pwm.h"
+#include <util/delay.h> /* For the delay functions */
+#include<avr/interrupt.h>
+
+#define MATCH 0x11
+#define MISMATCH 0x22
+#define DOOR 0x01
+#define CHANGEPASS 0x02
+#define MOTION 0x03
+#define NOMOTION 0x04
+#define WARNING 0x05
+
+uint8 password[7]; uint8 j;
+int tick=0;
+
+void firstpassword(void)
+{
+    UART_receiveString(password);
+	for(j=0;j<5;j++)
+	{
+		EEPROM_writeByte(0x0311+j,password[j]);
+		_delay_ms(10);
+	}
+}
+/////////////////////////////////////////////////////
+void timer2newtick(void)
+{
+	tick++;
+}
+/////////////////////////////////////////////////////////
+void opendoorcontrol(void)
+{
+
+
+	         	 	 tick=0;
+					 DcMotor_Rotate(clockwise,100);
+					 while(tick<=488){};
+
+
+                uint8 m=PIR_getState();
+	         if(m==1)
+					 {
+						 DcMotor_Rotate(stop,100);
+						 UART_sendByte(MOTION);
+					 }
+	         else
+	         	 {
+	        	     UART_sendByte(NOMOTION);
+	        	     tick=0;
+					 DcMotor_Rotate(anticlockwise,100);
+					 while(tick<=488){};
+
+	         	 }
+
+}
+//////////////////////////////////////////////////////////////////
+/*
+uint8 passwordcheck(uint8 *str)
+{
+	 int k;
+	 UART_receiveString(str);
+	         for(k=0;k<5;k++)
+	         {
+	        	 if(str[k]!=EEPROM_readByte(0x0311+k,password+k))
+	        	 {
+	        		 UART_sendByte(MISMATCH);
+	        		 return 0;
+	        	 }
+
+	         }
+	         UART_sendByte(MATCH);
+	         return 1;
+}*/
+uint8 passwordcheck(uint8 *str)
+{
+	 int k;
+	 UART_receiveString(str);
+	         for(k=0;k<5;k++)
+	         {
+	        	 if(str[k]!=password[k])
+	        	 {
+	        		 UART_sendByte(MISMATCH);
+	        		 return 0;
+	        	 }
+
+	         }
+	         UART_sendByte(MATCH);
+	         return 1;
+}
+/////////////////////////////////////////////////////////////////
+int main(void)
+{
+	Timer_ConfigType TIMER_CONFIGURATIONS2={0,0,TIMER2,PRESCALER_256,NORMAL};
+	TWI_ConfigType TWI_CONFIGURATIONS2={0x02,FAST_400K,prescaler_1};
+
+	TWI_init(&TWI_CONFIGURATIONS2);
+	UART_init(9600);
+    Timer_init(&TIMER_CONFIGURATIONS2);
+	Buzzer_init();
+	DcMotor_Init();
+	PIR_init();
+	PWM_Timer0_Start(100);
+
+    uint8 pass2door[7]; uint8 pass2change[7];
+    firstpassword();
+    Timer_setCallBack(timer2newtick, TIMER2);
+
+    while(1)
+    {
+    	 Timer_setCallBack(timer2newtick, TIMER2);
+
+    	if(UART_recieveByte()==DOOR)
+    	{
+			uint8 x=passwordcheck(pass2door);
+			 if(x==1)
+			 {
+				 opendoorcontrol();
+			 }
+    	}
+        if(UART_recieveByte()==CHANGEPASS)
+        {
+         passwordcheck(pass2change);
+
+         }
+        if(UART_recieveByte()==WARNING)
+        {
+        	Buzzer_on();
+        }
+
+
+
+    }
+}

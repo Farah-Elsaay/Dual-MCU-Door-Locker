@@ -1,0 +1,6 @@
+1730914971193	Delete resource 'HMI_ECU/uart.h'
+1730914979393	Delete resource 'HMI_ECU/uart.c'
+1730914987241	Delete resource 'CONTROL_ECU/uart.h'
+1730914990171	Delete resource 'CONTROL_ECU/uart.c'
+1730977970265	Delete resource 'CONTROL_ECU/timer.c'
+1730977975616	Delete resource 'CONTROL_ECU/timer.h'

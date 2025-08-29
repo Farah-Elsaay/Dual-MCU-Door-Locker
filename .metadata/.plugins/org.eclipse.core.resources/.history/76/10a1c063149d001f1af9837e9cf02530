@@ -1,0 +1,304 @@
+/*
+ * main_hmi.c
+ *
+ *  Created on: 1 Nov 2024
+ *      Author: farah
+ */
+
+#include "std_types.h"
+#include <util/delay.h>
+#include <avr/interrupt.h>
+#include "uart.h"
+#include "timer.h"
+#include "lcd.h"
+#include "keypad.h"
+
+/* #DEFINES AS ACK FOR UART COMMUNICATION BETWEEN TWO MICROCONTROLLERS */
+#define NEW_PASS              0x01
+#define DOOR_PASS_IN          0x02
+#define PASS_UPDATE           0x03
+#define MATCH                 0x04
+#define MISMATCH              0x05
+#define MOTION                0x06
+#define NO_MOTION             0x07
+#define WARNING               0x08
+
+/*ARRAY TO STORE FIRST TIME-ENTER PASSWORD*/
+uint8 pass[5] = {0};
+/*ARRAY TO STORE SECOND TIME-ENTER PASSWORD*/
+uint8 pass2[5]={0};
+uint8 i = 0;
+/*VARIABLE TO REPRESENT TWO PASSWORDS ARE MATCHED OR NOT*/
+uint8 twopasswords = 0;
+/*VARIABLE TO REPRESENT PRESSED KEY*/
+uint8 key = 0;
+/*VARIABLE TO REPRESENT TIMER TICKS TO CALCULATE TIME*/
+uint8 tick = 0;
+/*VARIABLE TO REPRESENT NUMBER OF ENTERING DOOR PASSWORD FAIL ATTEMPTS */
+uint8 pass_enter_door_fails = 0;
+/*VARIABLE TO REPRESENT NUMBER OF ENTERING PASSWORD TO UPDATE IT FAIL ATTEMPTS */
+uint8 pass_update_fails = 0;
+/*VARIABLE TO REPRESENT MOTION STATUS */
+uint8 motion_status = 0;
+
+/*CALLBACK FUNCTION*/
+void new_timer_tick(void)
+{
+	++tick; /*INCREMENT TICKS*/
+}
+
+int main()
+{
+	/*LCD*/
+	LCD_init();
+    /*UART*/
+	UART_ConfigType UART_CONFIGURATIONS = {BITS_MODE_8,NO_PARITY, STOPBIT_1BIT, 9600};
+	UART_init(&UART_CONFIGURATIONS);
+    /*TIMER*/
+	/*SET INTERRUPT ENABLE*/
+	sei();
+	Timer_ConfigType TIMER_CONFIGURATIONS = {0, 31250, TIMER1, PRESCALER_256, CTC};
+	Timer_init(&TIMER_CONFIGURATIONS);
+	Timer_setCallBack(new_timer_tick, TIMER1);
+
+	/*PASSWORD FIRST TIME ENTERING*/
+	while(twopasswords != MATCH)
+	{
+		UART_sendByte(NEW_PASS);
+		LCD_clearScreen();
+		/*FIRST TIME PASSWORD ENTER*/
+		LCD_displayString("PLZ enter PASS");
+		LCD_moveCursor(1, 0);
+		for(i = 0; i < 5; ++i)
+		{
+			pass[i] = KEYPAD_getPressedKey();
+			LCD_displayCharacter('*');
+			_delay_ms(500); /*PRESS TIME*/
+		}
+		while(KEYPAD_getPressedKey() != '=');
+		_delay_ms(500);
+		LCD_clearScreen();
+		/*SECOND TIME PASSWORD ENTER*/
+		LCD_displayString("PLZ RE-ENTER");
+		LCD_moveCursor(1, 0);
+		_delay_ms(500);
+		for(i = 0; i < 5; ++i)
+		{
+			pass2[i] = KEYPAD_getPressedKey();
+			LCD_displayCharacter('*');
+			_delay_ms(500);/*PRESS TIME*/
+		}
+		while(KEYPAD_getPressedKey() != '=');
+		_delay_ms(500);
+
+		/* SENDING PASSWORD TO CONTROL ECU TO CHECK IF THEY ARE MATCHED OR NOT*/
+		for(i = 0; i < 5; ++i)
+		{
+			UART_sendByte(pass[i]);
+		}
+		for(i = 0; i < 5; ++i)
+		{
+			UART_sendByte(pass2[i]);
+		}
+
+
+		twopasswords = UART_receiveByte();
+		if(twopasswords == MISMATCH)
+		{
+			/*THE PROGRAM WILL REMANIN IN THE WHILE LOOP UNTIL MATCHED PASSWORD ARE ENTERED*/
+			LCD_clearScreen();
+			LCD_displayString("WRONG PASS");
+			tick = 0;
+			while(tick< 3);
+		}
+	}
+
+
+	for(;;)
+	{
+		/*MAIN OPTIONS*/
+		LCD_clearScreen();
+		LCD_displayString("+ : OPEN DOOR");
+		LCD_displayStringRowColumn(1, 0, "- : CHANGE PASS");
+
+		/* WAIT UNTIL USER CHOOSES ONE OPTION */
+		do{
+			key = KEYPAD_getPressedKey();
+		}while(key != '+' && key != '-');
+
+
+		if(key == '+')
+		{
+
+			UART_sendByte(DOOR_PASS_IN);
+			LCD_clearScreen();
+			/*ASK USER TO ENTER CURRENT PASS*/
+			LCD_displayString("PLZ enter PASS");
+			LCD_moveCursor(1, 0);
+			_delay_ms(500);
+			for(i = 0; i < 5; ++i)
+			{
+				pass[i] = KEYPAD_getPressedKey();
+				LCD_displayCharacter('*');
+				_delay_ms(500);
+			}
+			while(KEYPAD_getPressedKey() != '=');
+			_delay_ms(500);
+
+			/* SENDING PASSWORD TO CONTROL ECU TO CHECK IF THEY ARE MATCHED OR NOT*/
+			for(i = 0; i < 5; ++i)
+			{
+				UART_sendByte(pass[i]);
+			}
+
+			/* Checking pass */
+			twopasswords = UART_receiveByte();
+			if(twopasswords == MATCH)
+			{
+				pass_enter_door_fails = 0;
+				/*OPEN DOOR CLOCKWISE FOR 15 SECONDS*/
+				LCD_clearScreen();
+				LCD_displayStringRowColumn(0, 1, "Door Unlocking");
+				LCD_displayStringRowColumn(1, 3, "Please Wait");
+				tick = 0;
+				while(tick < 15);
+
+				/*CHECK MOTION STATUS*/
+				LCD_clearScreen();
+				motion_status = UART_receiveByte();
+				while(motion_status == MOTION)
+				{
+					LCD_displayStringRowColumn(0, 0, "Wait for People");
+					LCD_displayStringRowColumn(1, 3, "to Enter");
+					motion_status = UART_receiveByte();
+				}
+				if(motion_status == NO_MOTION)
+				{
+					/*CLOSE DOOR ANTICLOCKWISE FOR 15 SECONDS*/
+					LCD_clearScreen();
+					LCD_displayStringRowColumn(0, 2, "Door Locking");
+					tick = 0;
+					while(tick < 15);
+				}
+			}
+			else if(twopasswords == MISMATCH)
+			{
+				++pass_enter_door_fails;
+				if(pass_enter_door_fails == 3) /*WARNING*/
+				{
+					/*LOCK SYSTEM 1 MINUTE*/
+					UART_sendByte(WARNING);
+					LCD_clearScreen();
+					LCD_displayStringRowColumn(0, 1, "SYSTEM LOCKED");
+					LCD_displayStringRowColumn(1, 0, "Wait for 1 min");
+					tick = 0;
+					while(tick < 60);
+					pass_enter_door_fails = 0;
+				}
+				else
+				{
+					LCD_clearScreen();
+					LCD_displayString("FAILED");
+					LCD_displayStringRowColumn(0, 1, "NOT MATCHED");
+					tick= 0;
+					while(tick < 3);
+				}
+			}
+		}
+		else if(key == '-')
+		{
+			UART_sendByte(PASS_UPDATE);
+			LCD_clearScreen();
+			/*ASK USER TO ENTER CURRENT PASSWORD*/
+			LCD_displayString("PLZ enter PASS");
+			LCD_moveCursor(1, 0);
+			_delay_ms(500);
+			for(i = 0; i < 5; ++i)
+			{
+				pass[i] = KEYPAD_getPressedKey();
+				LCD_displayCharacter('*');
+				_delay_ms(500);
+			}
+			while(KEYPAD_getPressedKey() != '=');
+			_delay_ms(500);
+
+			/* SENDING PASSWORD TO CONTROL ECU TO CHECK IF THEY ARE MATCHED OR NOT*/
+			for(i = 0; i < 5; ++i)
+			{
+				UART_sendByte(pass[i]);
+			}
+
+
+			twopasswords = UART_receiveByte();
+			if(twopasswords == MATCH)
+			{
+				/*UPDATE PASSWORD*/
+				pass_update_fails = 0;
+				LCD_clearScreen();
+				/*ASK USER TO ENTER NEW PASS*/
+				LCD_displayString("PLZ enter NEW");
+				LCD_displayStringRowColumn(1, 0, "PASS");
+				LCD_moveCursor(6, 0);
+
+				for(i = 0; i < 5; ++i)
+				{
+					pass[i] = KEYPAD_getPressedKey();
+					LCD_displayCharacter('*');
+					_delay_ms(500);
+				}
+				while(KEYPAD_getPressedKey() != '=');
+				_delay_ms(500);
+				LCD_clearScreen();
+				/*ASK USER TO ENTER NEW PASS SECOND TIME TO CHECK IF THEY ARE MATCHED OR NOT */
+				LCD_displayString("PLZ RE-ENTER");
+				LCD_moveCursor(1, 0);
+				_delay_ms(500);
+				for(i = 5; i < 10; ++i)
+				{
+					pass[i] = KEYPAD_getPressedKey();
+					LCD_displayCharacter('*');
+					_delay_ms(500);
+				}
+				while(KEYPAD_getPressedKey() != '=');
+				_delay_ms(500);
+
+				/* SENDING PASSWORD TO CONTROL ECU TO CHECK IF THEY ARE MATCHED OR NOT*/
+				for(i = 0; i < 10; ++i)
+				{
+					UART_sendByte(pass[i]);
+				}
+
+				twopasswords= UART_receiveByte();
+				if(twopasswords == MISMATCH)
+				{
+					LCD_clearScreen();
+					LCD_displayString("FAILED");
+					LCD_displayStringRowColumn(0, 1, "NOT MATCHED");
+					tick = 0;
+					while(tick < 3);
+				}
+			}
+			else if(twopasswords ==MISMATCH)
+			{
+				++pass_update_fails;
+				if(pass_update_fails == 3) /*WARNING*/
+				{
+					/* Lock system for 1 minute */
+					LCD_clearScreen();
+					LCD_displayStringRowColumn(0, 1, "System LOCKED");
+					LCD_displayStringRowColumn(1, 0, "Wait for 1 min");
+					tick = 0;
+					while(tick < 60);
+					pass_update_fails = 0;
+				}
+				else
+				{
+					LCD_clearScreen();
+					LCD_displayString("WRONG PASS");
+					tick = 0;
+					while(tick < 3);
+				}
+			}
+		}
+	}
+}

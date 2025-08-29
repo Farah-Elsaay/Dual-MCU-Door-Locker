@@ -1,0 +1,16 @@
+/*
+ * timer.c
+ *
+ *  Created on: 1 Nov 2024
+ *      Author: farah
+ */
+
+#include"timer.h"
+
+void Timer_init(const Timer_ConfigType*Config_Ptr)
+{
+#if(Config_Ptr->timer_ID==TIMER0)
+
+
+#endif
+}

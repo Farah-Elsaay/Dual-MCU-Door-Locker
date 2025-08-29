@@ -1,0 +1,35 @@
+/*
+ * pir.c
+ *
+ *  Created on: 1 Nov 2024
+ *      Author: farah
+ */
+#include"pir.h"
+#include"gpio.h"
+#include"common_macros.h"
+/*
+ * Description :
+ * Initialises PIR sensor
+ */
+void PIR_init(void)
+{
+	 GPIO_setupPinDirection(PORTC_ID, PIN2_ID,PIN_INPUT);
+
+}
+/*
+ * Description :
+ * returns PIR sensor state
+ */
+uint8 PIR_getState(void)
+{
+	if(BIT_IS_SET(PORTC_ID,PIN2_ID))
+	{
+		/* motion detected */
+		return 1;
+	}
+	else
+	{
+		/*no motion detected*/
+		return 0;
+	}
+}

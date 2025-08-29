@@ -1,0 +1,53 @@
+/*
+ * timer.h
+ *
+ *  Created on: 1 Nov 2024
+ *      Author: farah
+ */
+
+#ifndef TIMER_H_
+#define TIMER_H_
+
+#include "std_types.h"
+/*******************************************************************************
+ *                                Definitions                                  *
+ *******************************************************************************/
+#define NONINVERTING_CTC_MODE
+
+/*******************************************************************************
+ *                         Types Declaration                                   *
+ *******************************************************************************/
+typedef enum {
+
+	TIMER0,TIMER1,TIMER2
+
+}Timer_ID_Type;
+
+typedef enum {
+
+	NORMAL,COMPARE_MATCH
+
+} Timer_ModeType;
+
+typedef uint8 Timer_ClockType;
+
+typedef struct{
+	uint16 timer_InitialValue;
+	uint16 timer_compare_MatchValue;
+	Timer_ID_Type timer_ID;
+	Timer_ClockType timer_clock;
+    Timer_ModeType timer_mode;
+
+}Timer_ConfigType;
+
+/*******************************************************************************
+ *                      Functions Prototypes                                   *
+ *******************************************************************************/
+void Timer_init(const Timer_ConfigType * Config_Ptr);
+
+void Timer_deInit(Timer_ID_Type timer_type);
+
+void Timer_setCallBack(void(*a_ptr)(void), Timer_ID_Type a_timer_ID );
+
+
+#endif /* TIMER_H_ */
