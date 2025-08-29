@@ -1,74 +1,75 @@
-# 🔐 Dual Microcontroller-Based Door Locker Security System  
+# Dual Microcontroller-Based Door Locker Security System
 
-![GitHub repo size](https://img.shields.io/github/repo-size/yourusername/Dual-MCU-Door-Locker?color=blue)  
-![GitHub last commit](https://img.shields.io/github/last-commit/yourusername/Dual-MCU-Door-Locker?color=green)  
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)  
-![Platform](https://img.shields.io/badge/Platform-ATmega32-blue)  
+## Overview
+This project implements a **secure smart door control system** using two ATmega32 microcontrollers.  
+The system provides **password-based authentication**, **EEPROM storage**, **motorized door control**, and integrates a **PIR motion sensor** and **buzzer** for enhanced security.
 
----
-
-## 📖 Table of Contents
-- [📌 Overview](#-overview)
-- [✨ Features](#-features)
-- [🛠 Hardware Components](#-hardware-components)
-- [⚙️ System Architecture](#️-system-architecture)
-- [💻 Software & Drivers](#-software--drivers)
-- [🚀 Operation Workflow](#-operation-workflow)
-- [📂 Repository Structure](#-repository-structure)
-- [🎥 Demo & References](#-demo--references)
-- [📄 Documentation](#-documentation)
-- [👤 Author](#-author)
+It is designed as a **layered architecture** project with reusable embedded C drivers and clear separation between the **Human-Machine Interface (HMI_ECU)** and the **Control ECU**.
 
 ---
 
-## 📌 Overview  
-This project implements a **dual-microcontroller smart door security system** based on the **ATmega32**. It uses **two ECUs** communicating over UART:  
-
-- **HMI_ECU (Human-Machine Interface)** → Provides user interaction through a **16x2 LCD** and a **4x4 keypad**.  
-- **Control_ECU** → Controls the **door motor (via H-bridge)**, manages the **EEPROM storage**, handles **buzzer alerts**, and integrates a **PIR motion sensor** for enhanced functionality.  
-
-The system ensures **secure password authentication**, **user-friendly interface**, and **reliable motorized door control**.  
-
-🔑 **Key Idea**: Without the correct password, the door won’t unlock. After 3 failed attempts, the system activates an alarm and locks input for 1 minute.  
-
----
-
-## ✨ Features  
-✅ Password protection with EEPROM storage  
-✅ UART communication between two ECUs  
-✅ LCD + Keypad interface for user-friendly control  
-✅ Motorized door control (unlock/lock) using H-Bridge  
-✅ PIR motion detection to hold door open while people enter  
-✅ Buzzer alerts for failed attempts & alarms  
-✅ Security lock after 3 incorrect attempts (1-minute lockout)  
-✅ Option to change password after successful authentication  
+## Features
+- 🔑 **Password Protection** – 5-digit password stored in external EEPROM
+- 📟 **LCD & Keypad Interface** – user-friendly control
+- 🔗 **UART Communication** – HMI_ECU ↔ Control_ECU
+- 💾 **EEPROM Storage** – secure password storage
+- ⚙️ **Motorized Door Control** – open/close using H-bridge
+- 🚨 **Buzzer Alerts** – failed attempts & security alarms
+- 👀 **PIR Motion Sensor** – keeps door open while people enter
+- 🔒 **Security Lockout** – system locks after 3 incorrect attempts
 
 ---
 
-## 🛠 Hardware Components  
+## System Architecture
 
-### 🔹 HMI_ECU
-- **16x2 LCD (8-bit mode)** → Displays messages and system status  
-- **4x4 Keypad** → User input (password entry, options)  
-- **UART** → Communication with Control_ECU  
+**Block Diagram**
 
-### 🔹 Control_ECU
-- **ATmega32 Microcontroller**  
-- **External EEPROM (via I2C)** → Stores system passwords  
-- **H-Bridge Motor Driver + DC Motor** → Controls door opening/closing  
-- **PIR Motion Sensor** → Keeps door open if motion detected  
-- **Buzzer** → Alerts for failed authentication  
+
+- **HMI_ECU**: LCD, keypad, UART interface
+- **Control_ECU**: EEPROM, motor control, buzzer, PIR sensor
 
 ---
 
-## ⚙️ System Architecture  
+## Operation Flow
+1. **Set Password** – user enters and confirms a 5-digit password.
+2. **Main Menu** – choose between opening the door or changing the password.
+3. **Open Door**  
+   - Enter password → verified against EEPROM.  
+   - If correct → motor unlocks door → PIR keeps it open while detecting motion → motor locks door when motion stops.  
+   - If incorrect → system gives 3 attempts → buzzer + lockout on failure.
+4. **Change Password** – requires entering the old password successfully.
 
-```text
-+-----------------+            UART            +------------------+
-|   HMI_ECU       |  <---------------------->  |   Control_ECU    |
-|                 |                            |                  |
-| - LCD (16x2)    |                            | - EEPROM (I2C)   |
-| - Keypad (4x4)  |                            | - DC Motor (PWM) |
-| - UART TX/RX    |                            | - PIR Sensor     |
-|                 |                            | - Buzzer         |
-+-----------------+                            +------------------+
+---
+
+## Hardware Components
+- ATmega32 (x2)  
+- 16x2 LCD (HMI_ECU)  
+- 4x4 Keypad (HMI_ECU)  
+- External EEPROM (I2C)  
+- H-Bridge Motor Driver + DC Motor  
+- PIR Motion Sensor (Control_ECU)  
+- Buzzer (Control_ECU)
+
+---
+
+## Software & Drivers
+The project reuses and extends drivers developed in the course:  
+
+- **GPIO Driver** – general I/O control  
+- **UART Driver** – serial communication (configurable struct-based init)  
+- **LCD Driver** – 8-bit data mode  
+- **Keypad Driver** – 4x4 matrix keypad scanning  
+- **I2C Driver** – for EEPROM communication  
+- **PWM Driver** – motor speed control (Timer0)  
+- **Timer Driver** – configurable for delays and timing  
+- **Buzzer Driver** – simple ON/OFF control  
+- **PIR Driver** – motion detection  
+
+---
+
+## Demo & Documentation
+- 📺 [System Demo Video](https://youtu.be/X5EwIRfGAAY)  
+- 📄 [Final Project Report (PDF)](Documentation/Final_Project.pdf)
+
+
+
